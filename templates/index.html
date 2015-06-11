@@ -51,7 +51,7 @@
               Video URL
             </td>
             <td>
-              <input type="text" name="embeddeddata" size="34"{% if editing_post %} value="{{ editing_embedded_data }}"{% if editing_embedded_data%}>
+              <input type="text" name="embeddeddata" size="34"{% if editing_post %} value="{{ editing_embedded_data }}"{% if editing_embedded_data %}>
               <input type="checkbox" name="delembeddeddata" id="delembeddeddata"> <label for="delembeddeddata">delete embedded data</label{% endif %}{% endif %}>
             </td>
           </tr>
@@ -63,7 +63,15 @@
               <input type="file" name="file" size="35" accesskey="f">{% if editing_post %}{% if editing_post_has_image %}
               <input type="checkbox" name="deleteimage" id="deleteimage"> <label for="deleteimage">delete image</label>{% endif %}{% endif %}
             </td>
-          </tr>{% if not editing_post %}
+          </tr>{% if recaptcha_public %}
+          <tr>
+            <td class="postblock">
+              Captcha
+            </td>
+            <td>
+              <div class="g-recaptcha" data-sitekey="{{ recaptcha_public }}"></div>
+            </td>
+          </tr>{% endif %}{% if not editing_post %}
           <tr>
             <td class="postblock">
               Password

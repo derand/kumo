@@ -25,8 +25,13 @@ MAX_DIMENSION_FOR_IMAGE_CATALOG = 50
 # Number of posts in a thread after which bumping thread disabled. 0 for disabled this option.
 BUMP_LIMIT = 500
 
-ANONYMOUS = 'Anonymous'
+# default name for anonymous
+ANONYMOUS = ''
 POST_TRIPCODE_CHARACTER = '!'
+
+# ReCaptcha secret/public keys
+RECAPTCHA_SECRET = ''
+RECAPTCHA_PUBLIC = ''
 
 import StringIO
 import sys
@@ -44,6 +49,7 @@ import struct
 import math
 import urllib
 import logging
+import json
 
 # Set to true if we want to have our webapp print stack traces, etc
 _DEBUG = False
@@ -406,6 +412,27 @@ class Board(BaseRequestHandler):
     
     if not checkNotBanned(self, self.request.remote_addr):
       return self.error('You are banned.')
+
+    if RECAPTCHA_PUBLIC and len(RECAPTCHA_PUBLIC):
+      recaptcha_response = self.request.get('g-recaptcha-response')
+      if recaptcha_response is None or len(recaptcha_response) == 0:
+        return self.error('Captcha is not setted.')
+      form_fields = {
+        'secret': RECAPTCHA_SECRET,
+        'response': recaptcha_response,
+        'remoteip': self.request.remote_addr,
+      }
+      form_data = urllib.urlencode(form_fields)
+      result = urlfetch.fetch(url='https://www.google.com/recaptcha/api/siteverify',
+                          payload=form_data,
+                          method=urlfetch.POST,
+                          headers={'Content-Type': 'application/x-www-form-urlencoded'})
+      if result.status_code == 200:
+        res = json.loads(result.content)
+        if not res.has_key('success') or res.get('success') == False:
+          return self.error('Captcha error.')
+      else:
+        return self.error('Captcha service return error.')
     
     request_parent = self.request.get('parent')
     if request_parent:
@@ -435,7 +462,7 @@ class Board(BaseRequestHandler):
       return self.error('Database initialized.  Please re-submit your post.', True)
     
     post.name = cgi.escape(self.request.get('name')).strip()
-    name_match = re.compile(r'(.*)#(.*)').match(post.name)
+    name_match = re.compile(r'(.*)[#!](.*)').match(post.name)
     if name_match:
       if name_match.group(2):
         post.name = name_match.group(1)
@@ -561,9 +588,10 @@ class Board(BaseRequestHandler):
     if users.get_current_user():
       current_user = users.get_current_user()
       user_prefs = getUserPrefs(self)
-      
       post.author = current_user
-      post.name = ''
+      if post.anonymous:
+        post.name = ''
+        post.tripcode = ''
 
     if not post.image and not post.embedded_data:
       if not parent_post:
@@ -1119,6 +1147,8 @@ def writepage(self, threads, reply_to=None, doreturn=False, cached=False, pagenu
     }
   if not reply_to is None:
     template_values['op_postid'] = threads[0].op_postid
+  if RECAPTCHA_PUBLIC and len(RECAPTCHA_PUBLIC):
+    template_values['recaptcha_public'] = RECAPTCHA_PUBLIC
   template_values.update(ex_template_values)
   
   return self.generate('index.html', template_values, doreturn)
@@ -1268,13 +1298,13 @@ def nameBlock(post):
           
     nameblock += '</span>'
   else:
-    if post.author:
+    if post.author and not (post.name or post.tripcode):
       nameblock += u'<span class="loggedin"><span class="loggedinblip">◆</span>'
     else:
       nameblock += '<span class="postername">'
     if post.email:
       nameblock += '<a href="mailto:' + post.email + '">'
-    if post.author:
+    if post.author and not (post.name or post.tripcode):
       nameblock += post.author.nickname()
     else:
       if post.name:
@@ -1286,7 +1316,7 @@ def nameBlock(post):
         nameblock += '</span><span class="postertrip">' + POST_TRIPCODE_CHARACTER + post.tripcode
     if post.email:
       nameblock += '</a>'
-    if post.author:
+    if post.author and not (post.name or post.tripcode):
       nameblock += u'<span class="loggedinblip">◆</span>'
     nameblock += '</span>'
 

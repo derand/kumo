@@ -9,6 +9,8 @@ threadsafe: true
 libraries:
 - name: jinja2
   version: latest
+- name:    PIL
+  version: 1.1.7
 
 handlers:
 - url: /static/(.*\.(css|js|jpg|png|gif|exe))
